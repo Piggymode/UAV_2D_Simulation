@@ -1,0 +1,1 @@
+2D 3-dof UAV simulation framework for experimenting with guidance, navigation, and control algorithms. Includes modular components for testing aircraft dynamics, control strategies, and mission scenarios.
