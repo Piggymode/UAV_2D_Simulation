@@ -113,7 +113,7 @@ def animate_simulation(hist, interval_ms, path=None, stride=1, tri_len=80.0, tri
     trail_line, = ax.plot([], [], trail_style, lw=1.8, alpha=0.8, label="Trail")
 
     tri_pts = _triangle_points(es[0], ns[0], psis[0], L=tri_len, W=tri_w)
-    aircraft = patches.Polygon(tri_pts, closed=True, ec='b', fc='g', alpha=0.9, zorder=5, label="UAV")
+    aircraft = patches.Polygon(tri_pts, closed=True, ec='g', fc='g', alpha=0.9, zorder=5, label="UAV")
 
     ax.add_patch(aircraft)
     ax.legend(loc='best')
@@ -157,12 +157,12 @@ def _triangle_points(x, y, theta, L=80.0, W=40.0):
 # Main
 # =========================
 if __name__ == "__main__":
-    total_time = 300.0
+    total_time = 200.0
     sim_dt  = 0.002
     ctrl_dt = 0.05
     save_video = False
     
-    WP_center = [0000, 0000]
+    WP_center = [1000, 3000]
     WP_radius = 600
     WP_length = 2000
     WP_num_points = 200
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         return cmd
     
     # Simulation
-    x0 = [-100.0, -900.0, 0.0, 50.0] # [n, e, psi(rad), v(m/s)]
+    x0 = [900.0, 2000.0, 0.0, 50.0] # [n, e, psi(rad), v(m/s)]
     T, X = simulate_unicycle(Guidance_Method, x0, total_time, sim_dt, ctrl_dt, method="rk4")
     
     # Visualize
