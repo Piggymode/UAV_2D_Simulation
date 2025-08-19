@@ -54,7 +54,6 @@ if __name__ == "__main__":
     
     
     fig, ax = plt.subplots()
-    pad = 200.0
     ax.set_xlim(-1000, 3000)
     ax.set_ylim(1000, 5000)
     ax.set_aspect('equal', adjustable='box')

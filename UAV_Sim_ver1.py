@@ -6,6 +6,8 @@ from matplotlib import animation
 from matplotlib import patches
 
 from Mission_Planning.Path_Racetrack import generate_racetrack
+from Mission_Planning.Path_Straight import generate_straight_p2p
+from Mission_Planning.Path_Straight import generate_straight_bearing
 from Guidance.NLPF import find_target, NLPF_Guidance
 
 # =========================
@@ -157,18 +159,34 @@ def _triangle_points(x, y, theta, L=80.0, W=40.0):
 # Main
 # =========================
 if __name__ == "__main__":
-    total_time = 200.0
+    total_time = 80.0
     sim_dt  = 0.002
     ctrl_dt = 0.05
     save_video = False
     
-    WP_center = [1000, 3000]
-    WP_radius = 600
-    WP_length = 2000
-    WP_num_points = 200
-    WP_bearing_deg = 30
-    WP_direction = -1
-    WP_gen, is_loop = generate_racetrack(WP_center, WP_radius, WP_length, WP_num_points, WP_bearing_deg, WP_direction)
+    ## Racetrack Example
+    #WP_center = [1000, 3000]
+    #WP_radius = 600
+    #WP_length = 2000
+    #WP_num_points = 200
+    #WP_bearing_deg = 30
+    #WP_direction = -1
+    #WP_gen, is_loop = generate_racetrack(WP_center, WP_radius, WP_length, WP_num_points, WP_bearing_deg, WP_direction)
+    
+    
+    ## Straight Example1
+    #P_start = [0, 0]
+    #P_end = [3000, 4500]
+    #WP_num_points = 600
+    #WP_gen, is_loop = generate_straight_p2p(P_start, P_end, WP_num_points)
+    
+    
+    # Straight Example2
+    P_start = [0, 0]
+    bearing = 60
+    length = 7000
+    WP_num_points = 600
+    WP_gen, is_loop = generate_straight_bearing(P_start, bearing, length, WP_num_points)
     
     
     def Guidance_Method(state, L1=200, cmd_range=[-1, 1]):
@@ -178,7 +196,7 @@ if __name__ == "__main__":
         return cmd
     
     # Simulation
-    x0 = [900.0, 2000.0, 0.0, 50.0] # [n, e, psi(rad), v(m/s)]
+    x0 = [200.0, 1000.0, 0.0, 50.0] # [n, e, psi(rad), v(m/s)]
     T, X = simulate_unicycle(Guidance_Method, x0, total_time, sim_dt, ctrl_dt, method="rk4")
     
     # Visualize
