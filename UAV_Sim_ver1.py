@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib import patches
 
+from Mission_Planning.Path_Hold import generate_hold
 from Mission_Planning.Path_Racetrack import generate_racetrack
 from Mission_Planning.Path_Straight import generate_straight_p2p
 from Mission_Planning.Path_Straight import generate_straight_bearing
@@ -159,10 +160,18 @@ def _triangle_points(x, y, theta, L=80.0, W=40.0):
 # Main
 # =========================
 if __name__ == "__main__":
-    total_time = 80.0
+    total_time = 100.0
     sim_dt  = 0.002
     ctrl_dt = 0.05
-    save_video = False
+    save_video = True
+    
+    # Hold Example
+    WP_center = [1000, 1500]
+    WP_radius = 600
+    WP_num_points = 200
+    WP_direction = -1
+    WP_gen, is_loop = generate_hold(WP_center, WP_radius, WP_num_points, WP_direction)
+    
     
     ## Racetrack Example
     #WP_center = [1000, 3000]
@@ -181,12 +190,12 @@ if __name__ == "__main__":
     #WP_gen, is_loop = generate_straight_p2p(P_start, P_end, WP_num_points)
     
     
-    # Straight Example2
-    P_start = [0, 0]
-    bearing = 60
-    length = 7000
-    WP_num_points = 600
-    WP_gen, is_loop = generate_straight_bearing(P_start, bearing, length, WP_num_points)
+    ## Straight Example2
+    #P_start = [0, 0]
+    #bearing = 60
+    #length = 7000
+    #WP_num_points = 600
+    #WP_gen, is_loop = generate_straight_bearing(P_start, bearing, length, WP_num_points)
     
     
     def Guidance_Method(state, L1=200, cmd_range=[-1, 1]):
