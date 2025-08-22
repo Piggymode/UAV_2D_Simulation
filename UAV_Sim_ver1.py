@@ -3,13 +3,14 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib import animation
-from matplotlib import patches
 
-from Mission_Planning.Path_Hold import generate_hold
-from Mission_Planning.Path_Racetrack import generate_racetrack
-from Mission_Planning.Path_Straight import generate_straight_p2p
-from Mission_Planning.Path_Straight import generate_straight_bearing
-from Guidance.NLPF import find_target, NLPF_Guidance
+from Mission_Planner import make_waypoints
+from Guidance.TG import TG_find_target, TG_Guidance
+from Guidance.NLPF import NLPF_find_target, NLPF_Guidance
+import animation_plot
+#from animation_plot import animate_simulation
+#from animation_plot import animate_simulation
+#from animation_plot import animate_simulation
 
 # =========================
 # Generic Numerical Integrator
@@ -51,7 +52,9 @@ def simulate_unicycle(Guidance_Method, x0, T_tot, sim_dt, ctrl_dt, method="rk4")
 
     T = np.linspace(0.0, T_tot, total_steps+1)
     X = np.zeros((total_steps+1, 4), dtype=float)
+    U = np.zeros((total_steps+1, 2), dtype=float)
     X[0] = np.asarray(x0, dtype=float)
+    U[0] = np.asarray([0.0, 0.0], dtype=float)
 
     i = 0
     u = [Guidance_Method(X[0]), 0.0]
@@ -65,155 +68,88 @@ def simulate_unicycle(Guidance_Method, x0, T_tot, sim_dt, ctrl_dt, method="rk4")
             ctrl_chk += ctrl_dt
         
         X[k+1] = integrate_step(unicycle_dynamics, X[k], u, sim_dt, method, t)
+        U[k+1] = u
         t += sim_dt
 
-    return T, X
-
-# =========================
-# Animation & plot
-# =========================
-def animate_simulation(hist, interval_ms, path=None, stride=1, tri_len=80.0, tri_w=40.0, path_style = 'k:', trail_style='b--'):
-    ns, es, psis = hist[:,0], hist[:,1], hist[:,2]
-    # ---- path 입력 파싱 (선택) ----
-    has_path = path is not None
-    if has_path:
-        if isinstance(path, (tuple, list)) and len(path) == 2:
-            wN = np.asarray(path[:, 0]).ravel()
-            wE = np.asarray(path[:, 1]).ravel()
-        else:
-            P = np.asarray(path)
-            if P.ndim != 2 or (2 not in P.shape):
-                raise ValueError("path must be (N,2)[n,e] or (wN,wE) Form.")
-            if P.shape[1] == 2:   # (N,2): [n,e]
-                wN, wE = P[:, 0], P[:, 1]
-            else:                 # (2,N): [ [n...],[e...] ]
-                wN, wE = P[0, :], P[1, :]
-
-    # ---- Figure/Axis ----
-    fig, ax = plt.subplots()
-
-    n_min = np.min(ns)
-    n_max = np.max(ns)
-    e_min = np.min(es)
-    e_max = np.max(es)
-    if has_path:
-        n_min = min(n_min, np.min(wN))
-        n_max = max(n_max, np.max(wN))
-        e_min = min(e_min, np.min(wE))
-        e_max = max(e_max, np.max(wE))
-        
-    pad = 200.0
-    ax.set_xlim(np.min(es)-pad, np.max(es)+pad)
-    ax.set_ylim(np.min(ns)-pad, np.max(ns)+pad)
-    ax.set_aspect('equal', adjustable='box')
-    ax.grid(True, linestyle=':', alpha=0.3)
-    
-    if has_path:
-        path_line, = ax.plot(wE, wN, path_style, lw=1.2, label="Path")
-    else:
-        path_line = None
-        
-    trail_line, = ax.plot([], [], trail_style, lw=1.8, alpha=0.8, label="Trail")
-
-    tri_pts = _triangle_points(es[0], ns[0], psis[0], L=tri_len, W=tri_w)
-    aircraft = patches.Polygon(tri_pts, closed=True, ec='g', fc='g', alpha=0.9, zorder=5, label="UAV")
-
-    ax.add_patch(aircraft)
-    ax.legend(loc='best')
-
-    def init():
-        trail_line.set_data([], [])
-        aircraft.set_xy(_triangle_points(es[0], ns[0], psis[0], L=tri_len, W=tri_w))
-        # path_line은 정적이라 초기화 불필요
-        return (trail_line, aircraft) if path_line is None else (trail_line, aircraft, path_line)
-
-    def update(frame):
-        # 궤적 업데이트 (x=E, y=N)
-        trail_line.set_data(es[:frame+1], ns[:frame+1])
-        tri = _triangle_points(es[frame], ns[frame], psis[frame], L=tri_len, W=tri_w)
-        aircraft.set_xy(tri)
-        return (trail_line, aircraft) if path_line is None else (trail_line, aircraft, path_line)
-
-
-    frames = range(0, len(hist), max(200, int(stride)))
-    ani = animation.FuncAnimation(fig, update, frames=frames,
-                                  init_func=init, interval=interval_ms,
-                                  blit=False, repeat=False)
-    return ani, fig
-
-
-def _triangle_points(x, y, theta, L=80.0, W=40.0):
-    base = np.array([
-        [ L/2,   0.0   ],
-        [-L/2,  W/2   ],
-        [-L/2, -W/2   ] 
-    ])
-
-    c, s = np.cos(np.pi/2-theta), np.sin(np.pi/2-theta)
-    R = np.array([[c, -s],[s, c]])
-    rot = (R @ base.T).T
-    rot[:, 0] += x
-    rot[:, 1] += y
-    return rot
+    return T, X, U
 
 # =========================
 # Main
 # =========================
 if __name__ == "__main__":
-    total_time = 100.0
+    total_time = 150.0
     sim_dt  = 0.002
     ctrl_dt = 0.05
     save_video = True
     
-    # Hold Example
-    WP_center = [1000, 1500]
-    WP_radius = 600
-    WP_num_points = 200
-    WP_direction = -1
-    WP_gen, is_loop = generate_hold(WP_center, WP_radius, WP_num_points, WP_direction)
+    """
+    Scenarios and Options:
+    ----------------------
+    1. "hold" (circular holding pattern)
+        center      : (float, float), center point (default (1000, 1500))
+        radius      : float, circle radius (default 600.0)
+        num_points  : int, number of sampled waypoints (default 200)
+        direction   : int, rotation (+1 CCW / -1 CW) (default -1)
+    
+    2. "racetrack" (oval/racetrack pattern)
+        center      : (float, float), center of the racetrack (default (1000, 3000))
+        radius      : float, semicircle radius (default 600.0)
+        length      : float, straight leg length (default 2000.0)
+        num_points  : int, number of waypoints per segment (default 200)
+        bearing_deg : float, orientation angle of the racetrack in degrees (default 30.0)
+        direction   : int, rotation (+1 CCW / -1 CW) (default -1)
+    
+    3. "straight_p2p" (straight line between two points)
+        start       : (float, float), starting point (default (0,0))
+        end         : (float, float), ending point (default (3000, 4500))
+        num_points  : int, number of waypoints (default 600)
+    
+    4. "straight_bearing" (straight line with given bearing and length)
+        start       : (float, float), starting point (default (0,0))
+        bearing_deg : float, bearing angle in degrees (default 60.0)
+        length      : float, line length (default 7000.0)
+        num_points  : int, number of waypoints (default 600)
+    """
+    WP_gen, is_loop, meta = make_waypoints("hold", center=[0, 2000], radius=800, num_points=6000, direction=1)
+    print(f"[WP] {meta['scenario']} -> {meta['params']}")
     
     
-    ## Racetrack Example
-    #WP_center = [1000, 3000]
-    #WP_radius = 600
-    #WP_length = 2000
-    #WP_num_points = 200
-    #WP_bearing_deg = 30
-    #WP_direction = -1
-    #WP_gen, is_loop = generate_racetrack(WP_center, WP_radius, WP_length, WP_num_points, WP_bearing_deg, WP_direction)
-    
-    
-    ## Straight Example1
-    #P_start = [0, 0]
-    #P_end = [3000, 4500]
-    #WP_num_points = 600
-    #WP_gen, is_loop = generate_straight_p2p(P_start, P_end, WP_num_points)
-    
-    
-    ## Straight Example2
-    #P_start = [0, 0]
-    #bearing = 60
-    #length = 7000
-    #WP_num_points = 600
-    #WP_gen, is_loop = generate_straight_bearing(P_start, bearing, length, WP_num_points)
-    
-    
-    def Guidance_Method(state, L1=200, cmd_range=[-1, 1]):
+    def Guidance_Method1(state, L1=840, cmd_range=[-1, 1]):
         pos = state[:2]
-        tgt_wp = find_target(pos, WP_gen, L1, is_loop)
+        tgt_wp = NLPF_find_target(pos, WP_gen, L1, is_loop)
         cmd = np.clip(NLPF_Guidance(state, tgt_wp), cmd_range[0], cmd_range[1])
         return cmd
-    
+    def Guidance_Method2(state, L1=970, cmd_range=[-1, 1]):
+        pos = state[:2]
+        tgt_wp = NLPF_find_target(pos, WP_gen, L1, is_loop)
+        cmd = np.clip(NLPF_Guidance(state, tgt_wp), cmd_range[0], cmd_range[1])
+        return cmd
+    def Guidance_Method3(state, L1=1100, cmd_range=[-1, 1]):
+        pos = state[:2]
+        tgt_wp = NLPF_find_target(pos, WP_gen, L1, is_loop)
+        cmd = np.clip(NLPF_Guidance(state, tgt_wp), cmd_range[0], cmd_range[1])
+        return cmd
+    def Guidance_Method4(state, L1=1230, cmd_range=[-1, 1]):
+        pos = state[:2]
+        tgt_wp = NLPF_find_target(pos, WP_gen, L1, is_loop)
+        cmd = np.clip(NLPF_Guidance(state, tgt_wp), cmd_range[0], cmd_range[1])
+        return cmd
     # Simulation
-    x0 = [200.0, 1000.0, 0.0, 50.0] # [n, e, psi(rad), v(m/s)]
-    T, X = simulate_unicycle(Guidance_Method, x0, total_time, sim_dt, ctrl_dt, method="rk4")
+    x0 = [000.0, 0000.0, np.pi/2, 50.0] # [n, e, psi(rad), v(m/s)]
+    T, X1, U1 = simulate_unicycle(Guidance_Method1, x0, total_time, sim_dt, ctrl_dt, method="rk4")
+    _, X2, U2 = simulate_unicycle(Guidance_Method2, x0, total_time, sim_dt, ctrl_dt, method="rk4")
+    _, X3, U3 = simulate_unicycle(Guidance_Method3, x0, total_time, sim_dt, ctrl_dt, method="rk4")
+    _, X4, U4 = simulate_unicycle(Guidance_Method4, x0, total_time, sim_dt, ctrl_dt, method="rk4")
     
     # Visualize
-    interval_ms=0.001
-    ani, fig = animate_simulation(X, interval_ms, path=WP_gen)
+    ani, fig = animation_plot.animate_simulation([X1, X2, X3, X4], interval_ms=1, stride=120, path=WP_gen)
     if save_video == True:
         ani.save("uav_simulation.mp4", writer=animation.FFMpegWriter(fps=30))
     
     plt.show(block=False)
     plt.close(fig) 
 
+
+    animation_plot.plot_uav_paths([X1, X2, X3, X4], path=WP_gen)
+    animation_plot.plot_turn_rates([U1, U2, U3, U4], times=T)
+    plt.show()

@@ -7,8 +7,9 @@ def generate_hold(WP_center, radius, num_points, direction):
 
     for i in range(num_points):
         angle = 2 * np.pi * (i / num_points)
-        x = radius * np.sin(angle); y = radius * np.cos(angle)
-        waypoints.append([x, y])
+        n = radius * np.cos(angle)
+        e = radius * np.sin(angle)
+        waypoints.append([n, e])
 
     waypoints = np.array(waypoints)
 
