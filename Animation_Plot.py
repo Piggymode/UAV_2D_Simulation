@@ -3,12 +3,6 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib.patches import Polygon
 
-__all__ = [
-    "animate_simulation",
-    "plot_uav_paths",
-    "plot_turn_rates",
-]
-
 # =========================================================
 # Internals
 # =========================================================
@@ -159,13 +153,13 @@ def animate_simulation(
                 wE, wN,
                 #linestyle=(0, (4, 6)),
                 alpha=path_alpha,
-                lw=1,
+                lw=2,
                 color=colors[i],
                 zorder=1,
                 animated=False
             )
-            line.set_linestyle(":")      # 점선 스타일
-            line.set_dashes([6, 6])
+            line.set_linestyle("-")    
+            #line.set_dashes([6, 6])
 
     # 동적 아티스트: 꼬리선 / 기체 폴리곤만 프레임별 업데이트
     for i in range(n_uav):

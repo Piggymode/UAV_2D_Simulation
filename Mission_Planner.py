@@ -7,27 +7,27 @@ PRESETS = {
     "hold": {
         "center": (1000.0, 1500.0),
         "radius": 600.0,
-        "num_points": 200,
+        "num_points": 1000,
         "direction": 1, 
     },
     "racetrack": {
         "center": (1000.0, 3000.0),
         "radius": 600.0,
         "length": 2000.0,
-        "num_points": 200,
+        "num_points": 1000,
         "bearing_deg": 30.0,
         "direction": 1,
     },
     "straight_p2p": {
         "start": (0.0, 0.0),
         "end": (3000.0, 4500.0),
-        "num_points": 600,
+        "num_points": 1000,
     },
     "straight_bearing": {
         "start": (0.0, 0.0),
         "bearing_deg": 60.0,
         "length": 7000.0,
-        "num_points": 600,
+        "num_points": 1000,
     },
 }
 
@@ -95,7 +95,7 @@ def mission_planner_step(t, pos_NE, psi, mission_state, mission_spec):
         done = (t - enter_time) >= float(leg[5])
     elif typ == "LINE":
         eN, eE = float(leg[3]), float(leg[4])
-        done = np.hypot(pos_NE[0]-eN, pos_NE[1]-eE) < 10.0
+        done = np.hypot(pos_NE[0]-eN, pos_NE[1]-eE) < 50.0
     else:  # RACETRACK
         laps_or_dur = leg[7]
         if isinstance(laps_or_dur, int):

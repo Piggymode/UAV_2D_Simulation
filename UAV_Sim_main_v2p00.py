@@ -75,7 +75,7 @@ if __name__ == "__main__":
         (WP_gen, is_loop, meta), mission_states[idx] = mission_planner_step(t=guidance_times[idx],pos_NE=state[:2],psi=state[2],mission_state=mission_states[idx],mission_spec=missions[idx])
         WP_save[idx] = append_path(WP_save[idx], WP_gen)
         tgt, heading_path = TG_find_target(state[:2], WP_gen, is_loop)
-        omega = TG_Guidance(state, tgt, heading_path, -0.033, 400)
+        omega = TG_Guidance(state, tgt, heading_path, -0.0002, 100)
         guidance_times[idx] += ctrl_dt
         return float(np.clip(omega, -1.0, 1.0))
 

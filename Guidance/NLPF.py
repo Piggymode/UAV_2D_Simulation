@@ -36,9 +36,9 @@ def NLPF_Guidance(state, target_wp):
     
     L1 = np.linalg.norm(target_wp - np.array([n, e]))
     
-    eta = np.arctan2(target_wp[1] - e, target_wp[0] - n) -psi
-    #eta = np.arctan2(np.sin(eta), np.cos(eta))
-    #eta = np.clip(np.arctan2(np.sin(eta), np.cos(eta)), -np.pi/2, np.pi/2)
+    eta = np.atan2(target_wp[1] - e, target_wp[0] - n) -psi
+    #eta = np.atan2(np.sin(eta), np.cos(eta))
+    #eta = np.clip(np.atan2(np.sin(eta), np.cos(eta)), -np.pi/2, np.pi/2)
     
     omega = (2 * v / L1) * np.sin(eta)
     return omega
