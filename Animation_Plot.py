@@ -3,61 +3,28 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib.patches import Polygon
 
-# =========================================================
-# Internals
-# =========================================================
-
 def _normalize_path_like(P):
     if P is None:
         return None
+    a = np.asarray(P, dtype=float)
+    if a.ndim == 2 and a.shape[1] == 2:     # (N,2) [N,E]
+        return a
+    if a.ndim == 2 and a.shape[0] == 2:     # (2,N) -> (N,2)
+        return a.T
+    if isinstance(P, (list, tuple)) and len(P) == 2:
+        wN, wE = np.asarray(P[0], float).ravel(), np.asarray(P[1], float).ravel()
+        return np.column_stack([wN, wE])
+    raise ValueError("path must be (N,2) or (2,N) or (wN,wE).")
 
-    def _to_NE(a):
-        a = np.asarray(a, dtype=float)
-        if a.ndim == 1:
-            a = a.reshape(-1, 2)
-        a = a[:, :2]
-        return a  # [N, E]
-
-    if isinstance(P, np.ndarray):
-        return _to_NE(P)
-
-    if isinstance(P, (list, tuple)):
-        parts = []
-        for item in P:
-            if item is None:
-                continue
-            parts.append(_to_NE(item))
-        if len(parts) == 0:
-            return None
-        return np.vstack(parts)
-
-    # fallback
-    arr = np.asarray(P, dtype=float)
-    if arr.ndim >= 2 and arr.shape[1] >= 2:
-        return arr[:, :2]
-    return None
-
-
-def _choose_colors(n):
-    cmap = plt.get_cmap("tab10")
-    return [cmap(i % 10) for i in range(n)]
-
-
-def _triangle_vertices_EN(e, n, psi, L=18.0, W=20.0):
-    f_e, f_n = np.sin(psi), np.cos(psi)
-    l_e, l_n = -f_n, f_e
-
-    # local (forward, left) frame 기준 삼각형
-    verts_local = np.array([
-        [ +L,      0.0     ],  # nose
-        [ -0.5*L, +0.5*W   ],
-        [ -0.5*L, -0.5*W   ],
-    ])
-
-    E = e + verts_local[:, 0] * f_e + verts_local[:, 1] * l_e
-    N = n + verts_local[:, 0] * f_n + verts_local[:, 1] * l_n
-    return np.column_stack([E, N])
-
+def _triangle_vertices_EN(e, n, psi, L=18.0, W=10.0):
+    ue, un = np.sin(psi), np.cos(psi)   # heading (E,N)
+    le, ln = -un, ue
+    re, rn = +un, -ue
+    nose_e, nose_n = e + L*ue, n + L*un
+    tail_e, tail_n = e - 0.5*L*ue, n - 0.5*L*un
+    rl_e, rl_n = tail_e + 0.5*W*le, tail_n + 0.5*W*ln
+    rr_e, rr_n = tail_e + 0.5*W*re, tail_n + 0.5*W*rn
+    return np.array([[nose_e, nose_n], [rl_e, rl_n], [rr_e, rr_n]])
 
 def _cumulative_dist_EN(E, N):
     dE = np.diff(E, prepend=E[0])
@@ -65,14 +32,9 @@ def _cumulative_dist_EN(E, N):
     step = np.hypot(dE, dN)
     return np.cumsum(step)
 
-
-# =========================================================
-# Public API
-# =========================================================
-
 def animate_simulation(
     histories,
-    path=None,
+    path=None,                      # (구버전 호환) 정적 path
     interval_ms=50,
     stride=1,
     tail_length_m=200.0,
@@ -81,214 +43,136 @@ def animate_simulation(
     labels=None,
     uav_scale=1.0,
     path_linestyle=":",
-    path_alpha=0.1,
+    path_alpha=0.20,
     blit=False,
     show=True,
-):
-    assert isinstance(histories, (list, tuple)) and len(histories) > 0, "histories must be a non-empty list of arrays"
-    Hs = [np.asarray(H, dtype=float) for H in histories]
-    Tlen = min([H.shape[0] for H in Hs])  # sync to shortest
-    n_uav = len(Hs)
 
+    # === (신규) 현재 레그 기반 동적 경로 표시 ===
+    leg_index_histories=None,       # [per-UAV] np.array of int (프레임별 레그 idx)
+    path_by_leg_list=None,          # [per-UAV] dict {leg_idx: path(N,2)[N,E]}
+):
+    # ---- normalize histories ----
+    assert isinstance(histories, (list, tuple)) and len(histories) > 0
+    Hs = [np.asarray(H, float) for H in histories]
+    n_uav = len(Hs)
+    Tlen  = min(H.shape[0] for H in Hs)
+
+    # ---- colors/labels ----
     if colors is None:
-        colors = _choose_colors(n_uav)
+        base = plt.rcParams.get("axes.prop_cycle").by_key().get("color", None) or [f"C{i}" for i in range(10)]
+        colors = [base[i % len(base)] for i in range(n_uav)]
     if labels is None:
         labels = [f"UAV{i+1}" for i in range(n_uav)]
 
-    # Normalize paths (per-UAV로 맞춤)
+    # ---- static paths (optional) ----
     paths = None
     if path is not None:
         if isinstance(path, (list, tuple)):
             assert len(path) == n_uav, "path list length must match histories"
-            paths = [ _normalize_path_like(p) for p in path ]
+            paths = [_normalize_path_like(p) if p is not None else None for p in path]
         else:
             P = _normalize_path_like(path)
             paths = [P for _ in range(n_uav)]
 
-    # Figure & axis
+    # ---- figure/axes ----
     fig, ax = plt.subplots(figsize=figsize)
     ax.set_aspect("equal", adjustable="box")
     ax.grid(True, linestyle=":", alpha=0.4)
     ax.set_xlabel("East [m]")
     ax.set_ylabel("North [m]")
-    ax.set_title("UAV Simulation (E vs N)")
+    ax.set_title("UAV Simulation")
 
-    # Bounds
-    allE, allN = [], []
-    for H in Hs:
-        n, e = H[:Tlen, 0], H[:Tlen, 1]
-        allE.append(e)
-        allN.append(n)
+    # ---- bounds from histories (+ paths + leg paths) ----
+    Ns = np.concatenate([H[:Tlen, 0] for H in Hs])
+    Es = np.concatenate([H[:Tlen, 1] for H in Hs])
+    Nmin, Nmax = float(np.min(Ns)), float(np.max(Ns))
+    Emin, Emax = float(np.min(Es)), float(np.max(Es))
+
+    def _extend(Nmin, Nmax, Emin, Emax, P):
+        if P is None: return Nmin, Nmax, Emin, Emax
+        P = _normalize_path_like(P)
+        Nmin = min(Nmin, np.min(P[:,0])); Nmax = max(Nmax, np.max(P[:,0]))
+        Emin = min(Emin, np.min(P[:,1])); Emax = max(Emax, np.max(P[:,1]))
+        return Nmin, Nmax, Emin, Emax
+
     if paths is not None:
         for P in paths:
-            if P is not None and P.size > 0:
-                allN.append(P[:,0])  # N
-                allE.append(P[:,1])  # E
-    if len(allE) > 0:
-        Ecat = np.concatenate([np.asarray(a).ravel() for a in allE])
-        Ncat = np.concatenate([np.asarray(a).ravel() for a in allN])
-        pad = 100.0
-        ax.set_xlim(Ecat.min()-pad, Ecat.max()+pad)
-        ax.set_ylim(Ncat.min()-pad, Ncat.max()+pad)
+            Nmin, Nmax, Emin, Emax = _extend(Nmin, Nmax, Emin, Emax, P)
+    if (leg_index_histories is not None) and (path_by_leg_list is not None):
+        for leg_map in path_by_leg_list:
+            for P in leg_map.values():
+                Nmin, Nmax, Emin, Emax = _extend(Nmin, Nmax, Emin, Emax, P)
 
-    # Precompute tail cumulative distance
+    dN = max(1.0, 0.05*(Nmax - Nmin)); dE = max(1.0, 0.05*(Emax - Emin))
+    ax.set_xlim(Emin - dE, Emax + dE); ax.set_ylim(Nmin - dN, Nmax + dN)
+
+    # ---- tails & bodies ----
     cumdists = []
     for H in Hs:
         n, e = H[:Tlen, 0], H[:Tlen, 1]
         cumdists.append(_cumulative_dist_EN(e, n))
 
-    # Artists
-    tail_lines = []
-    body_patches = []
-
-    # ▶ 경로 라인은 '초기화에서 한 번만' 그림 (정적)
-    if paths is not None:
-        for i in range(n_uav):
-            P = paths[i]
-            if P is None or P.size == 0:
-                continue
-            wN, wE = P[:,0], P[:,1]
-            # animated=False 로 설정하여 blit 시에도 재렌더 대상에서 제외
-            line, = ax.plot(
-                wE, wN,
-                #linestyle=(0, (4, 6)),
-                alpha=path_alpha,
-                lw=2,
-                color=colors[i],
-                zorder=1,
-                animated=False
-            )
-            line.set_linestyle("-")    
-            #line.set_dashes([6, 6])
-
-    # 동적 아티스트: 꼬리선 / 기체 폴리곤만 프레임별 업데이트
-    for i in range(n_uav):
-        color = colors[i]
-
-        # Tail line (recent tail_length_m)
-        line, = ax.plot([], [], lw=1.0, label=labels[i], linestyle=':', color=color, zorder=3, animated=blit)
-        tail_lines.append(line)
-
-        # Vehicle polygon
-        tri = Polygon([[0,0],[0,0],[0,0]], closed=True, ec="none", fc=color, alpha=0.95, zorder=4, animated=blit)
-        ax.add_patch(tri)
-        body_patches.append(tri)
-
-    # Legend
-    if labels is not None:
-        ax.legend(loc="best")
-
-    # Interval handling
-    if interval_ms < 5.0:
-        interval = int(1000.0 * interval_ms)
-    else:
-        interval = int(interval_ms)
-
-    # Triangle size
-    base_L = 18.0 * uav_scale
-    base_W = 20.0 * uav_scale
-
-    frames = np.arange(0, Tlen, stride, dtype=int)
-
-    def _update(frame_idx):
-        k = int(frame_idx)
-        for i, H in enumerate(Hs):
-            n, e, psi = H[k, 0], H[k, 1], H[k, 2]
-            # body
-            verts = _triangle_vertices_EN(e, n, psi, L=base_L, W=base_W)
-            body_patches[i].set_xy(verts)
-
-            # tail (최근 tail_length_m 구간만)
-            cd = cumdists[i]
-            target = cd[k]
-            start_val = target - tail_length_m
-            j = int(np.searchsorted(cd, start_val, side="left"))
-            e_seg = H[j:k+1, 1]
-            n_seg = H[j:k+1, 0]
-            tail_lines[i].set_data(e_seg, n_seg)
-
-        # 정적 경로 라인은 반환하지 않음
-        return (*tail_lines, *body_patches)
-
-    ani = animation.FuncAnimation(
-        fig, _update, frames=frames, interval=interval, blit=blit, repeat=False
-    )
-
-    # Keep references so GC doesn't kill the animation
-    if not hasattr(fig, "_keepalive"):
-        fig._keepalive = []
-    fig._keepalive.append(ani)
-
-    # Optionally show and block until window is closed
-    if show:
-        plt.show()
-
-    return ani, fig
-
-
-def plot_uav_paths(histories, path=None, colors=None, labels=None, figsize=(7,7)):
-    Hs = [np.asarray(H, dtype=float) for H in histories]
-    n_uav = len(Hs)
-    if colors is None:
-        colors = _choose_colors(n_uav)
-    if labels is None:
-        labels = [f"UAV{i+1}" for i in range(n_uav)]
-
-    # Normalize paths
-    paths = None
-    if path is not None:
-        if isinstance(path, (list, tuple)):
-            assert len(path) == n_uav, "path list length must match histories"
-            paths = [ _normalize_path_like(p) for p in path ]
-        else:
-            P = _normalize_path_like(path)
-            paths = [P for _ in range(n_uav)]
-
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.set_aspect("equal", adjustable="box")
-    ax.grid(True, linestyle=":", alpha=0.4)
-    ax.set_xlabel("East [m]")
-    ax.set_ylabel("North [m]")
-    ax.set_title("UAV Trajectories (E vs N)")
-
+    tail_lines, body_patches = [], []
+    base_L = 18.0*uav_scale; base_W = 10.0*uav_scale
     for i, H in enumerate(Hs):
-        n, e = H[:,0], H[:,1]
-        ax.plot(e, n, lw=2.0, label=labels[i], color=colors[i])
-
-    if paths is not None:
-        for i, P in enumerate(paths):
-            if P is None or P.size == 0:
-                continue
-            wN, wE = P[:,0], P[:,1]
-            line, = ax.plot(wE, wN, linestyle=(0, (4, 6)), lw=1, color=colors[i], alpha=0.1)
-            line.set_linestyle(":")
-            line.set_dashes([6, 6])
-
+        (tline,) = ax.plot([], [], lw=2, color=colors[i], zorder=2, animated=blit, label=labels[i])
+        tail_lines.append(tline)
+        verts = _triangle_vertices_EN(H[0,1], H[0,0], H[0,2], L=base_L, W=base_W)
+        poly = Polygon(verts, closed=True, ec=colors[i], fc=colors[i], alpha=0.9, zorder=3, animated=blit)
+        body_patches.append(poly); ax.add_patch(poly)
     ax.legend(loc="best")
-    return fig, ax
 
+    # ---- dynamic leg-based path line ----
+    use_leg = (leg_index_histories is not None) and (path_by_leg_list is not None)
+    leg_path_lines = []
+    if use_leg:
+        for i in range(n_uav):
+            line, = ax.plot([], [], path_linestyle, lw=2, alpha=path_alpha, color=colors[i], zorder=1, animated=blit)
+            leg_path_lines.append(line)
+    else:
+        # fallback: static path (구버전 호환)
+        if paths is not None:
+            for i in range(n_uav):
+                P = paths[i]
+                if P is None: continue
+                ax.plot(P[:,1], P[:,0], path_linestyle, lw=2, alpha=path_alpha, color=colors[i], zorder=1)
 
-def plot_turn_rates(U_list, times=None, labels=None, figsize=(8,4)):
-    Us = [np.asarray(U) for U in U_list]
-    n_uav = len(Us)
-    if labels is None:
-        labels = [f"UAV{i+1}" for i in range(n_uav)]
+    frames = list(range(0, Tlen, max(1, int(stride))))
 
-    fig, ax = plt.subplots(figsize=figsize)
-    for i, U in enumerate(Us):
-        if U.ndim == 2 and U.shape[1] >= 1:
-            y = U[:,0]
-        else:
-            y = U.ravel()
-        if i == 0 and times is not None:
-            x = np.asarray(times).ravel()
-        else:
-            x = np.arange(len(y))
-        ax.plot(x, y, lw=1.6, label=labels[i])
+    def _update(k):
+        # 현재 레그 path 교체
+        if use_leg:
+            for i in range(n_uav):
+                leg_hist = leg_index_histories[i]
+                leg_map  = path_by_leg_list[i]
+                if leg_hist is None or len(leg_hist) == 0:
+                    leg_path_lines[i].set_data([], [])
+                    continue
+                # histories 길이(Tlen)와 leg_hist 길이가 다를 수 있으니 스케일링
+                idx_k = int(np.floor(k * (len(leg_hist) - 1) / (Tlen - 1))) if Tlen > 1 else 0
+                leg = int(leg_hist[idx_k])
+                P = leg_map.get(leg, None)
+                if P is None or len(P) == 0:
+                    leg_path_lines[i].set_data([], [])
+                else:
+                    P = _normalize_path_like(P)
+                    leg_path_lines[i].set_data(P[:,1], P[:,0])  # (E,N)
 
-    ax.set_xlabel("Time [s]" if times is not None else "Step")
-    ax.set_ylabel("Yaw rate command ω [rad/s]")
-    ax.grid(True, linestyle=":", alpha=0.4)
-    ax.set_title("Yaw-rate Commands")
-    ax.legend(loc="best")
-    return fig, ax
+        # 꼬리/기체
+        for i, H in enumerate(Hs):
+            n, e, psi = H[k,0], H[k,1], H[k,2]
+            body_patches[i].set_xy(_triangle_vertices_EN(e, n, psi, L=base_L, W=base_W))
+            cd = cumdists[i]
+            target = cd[k]; start_val = target - float(tail_length_m)
+            j = int(np.searchsorted(cd, start_val, side="left"))
+            tail_lines[i].set_data(H[j:k+1,1], H[j:k+1,0])  # (E,N)
+
+        if blit:
+            artists = [*tail_lines, *body_patches]
+            if use_leg: artists.extend(leg_path_lines)
+            return artists
+        return []
+
+    ani = animation.FuncAnimation(fig, _update, frames=frames, interval=float(interval_ms), blit=blit)
+    if show: plt.show()
+    return ani, fig
