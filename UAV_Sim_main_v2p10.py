@@ -15,7 +15,7 @@ from Animation_Plot import animate_simulation
 # Main
 # =========================
 if __name__ == "__main__":
-    total_time = 200.0
+    total_time = 300.0
     sim_dt  = 0.01
     ctrl_dt = 0.1
     save_video = False
@@ -38,26 +38,25 @@ if __name__ == "__main__":
     # HOLD     (x, y, radius, direction(+1/-1), duration[s])
     # LINE     (x, y, 0.0, 0.0, mode="FLY_OVER"/"FLY_BY")
     # RACETRACK(x, y, length, width, bearing[deg], direction(+1/-1), laps)
-    
     m0 = [("HOLD", 0.0, 0.0, 400.0, -1, 30.0),
-          ("LINE", 1200.0, 800.0, 0.0, 0.0, "FLY_OVER"),
+          ("LINE", 1200.0, 800.0, "FLY_OVER"),
           ("HOLD", 800.0, -600.0, 300.0, +1, 30.0),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, -1, 3),
-          ("LINE", 400.0, -600.0, 0.0, 0.0, "FLY_BY")]
+          ("LINE", 400.0, -600.0, "FLY_BY")]
     m1 = [("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, +1, 3),
           ("HOLD", 0.0, 0.0, 400.0, -1, 60.0),
-          ("LINE", 1200.0, 800.0, 0.0, 0.0, "FLY_OVER"),
+          ("LINE", 1200.0, 800.0, "FLY_OVER"),
           ("HOLD", 400.0, -600.0, 300.0, +1, 120.0)]
     m2 = [("HOLD", 800.0, -600.0, 300.0, +1, 120.0),
-          ("LINE", 400.0, -600.0, 0.0, 0.0, "FLY_BY"),
+          ("LINE", 00.0, 00.0, "FLY_BY"),
           ("HOLD", 0.0, 0.0, 400.0, -1, 60.0),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, -1, 3),
-          ("LINE", 1200.0, 800.0, 0.0, 0.0, "FLY_OVER"),]
+          ("LINE", 1200.0, 800.0, "FLY_OVER"),]
     m3 = [("HOLD", 0.0, 0.0, 400.0, -1, 60.0),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, +1, 3),
-          ("LINE", 1200.0, 800.0, 0.0, 0.0, "FLY_OVER"),
+          ("LINE", 1200.0, 800.0, "FLY_OVER"),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, +1, 3),
-          ("LINE", 400.0, -600.0, 0.0, 0.0, "FLY_BY"),
+          ("LINE", 400.0, -600.0, "FLY_BY"),
           ("HOLD", 400.0, -600.0, 300.0, +1, 120.0)]
     
     missions = [m0, m1, m2, m3]
@@ -119,7 +118,7 @@ if __name__ == "__main__":
     _, X4, U4 = simulate_unicycle(Guidance_Method_3, x0_list[3] , total_time, sim_dt, ctrl_dt, method="rk4")
     
     # =========================
-    # Visualizeㄴ
+    # Visualize
     # =========================
     ani, fig = animate_simulation(
     histories=[X1, X2, X3, X4],

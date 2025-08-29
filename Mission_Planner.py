@@ -5,26 +5,6 @@ from Mission_Planning.Path_Racetrack import generate_racetrack
 from Mission_Planning.Path_Straight import generate_straight_p2p
 
 def mission_planner_step(t, pos_NE, psi, mission_state, mission_spec):
-    """
-    역할:
-      - (prev, cur, next) 3-튜플만 산출한다.
-      - 경로 점찍기/shape discretization은 하지 않는다. (NLPF/TG에서 처리)
-
-    Inputs
-      t            : [s] guidance time (monotonic)
-      pos_NE       : np.array([n, e])
-      psi          : [rad] heading (북=0, 시계방향 +)
-      mission_state: [leg_idx, enter_time, aux]  (lazy init = None)
-      mission_spec : 리스트 of mission legs
-                     ("HOLD",     cN, cE, R, dir(+1/-1), duration[s])
-                     ("LINE",     sN, sE, eN, eE, mode("FLY_OVER"/"FLY_BY"))
-                     ("RACETRACK",cN, cE, R, Ls, bearing_deg, dir(+1/-1), laps[int]/duration[float])
-    Returns
-      ((prev, cur, next), meta), new_state
-        - prev/cur/next는 mission_spec의 원소(튜플) 또는 None
-        - meta = {"leg_idx": idx, "typ": str}
-    """
-    # ---- Lazy init ----
     if mission_state is None:
         mission_state = [0, 0.0, None]  # [leg_idx, enter_time, aux]
 
@@ -33,7 +13,6 @@ def mission_planner_step(t, pos_NE, psi, mission_state, mission_spec):
     leg = mission_spec[leg_idx]
     typ = leg[0]
 
-    # ---- 완료 조건 정의 ----
     done = False
     if typ == "HOLD":
         done = (t - enter_time) >= float(leg[5])
@@ -58,11 +37,9 @@ def mission_planner_step(t, pos_NE, psi, mission_state, mission_spec):
     else:
         raise ValueError(f"Unknown leg type: {typ}")
 
-    # ---- 완료 시 전환 및 Auto-HOLD ----
     if done:
         last_leg = (leg_idx == num_legs - 1)
         if last_leg and (typ == "LINE"):
-            # 마지막이 LINE이면 자동 HOLD 추가
             AUTO_HOLD_RADIUS   = 300.0
             AUTO_HOLD_DIR      = +1
             AUTO_HOLD_DURATION = 999.0

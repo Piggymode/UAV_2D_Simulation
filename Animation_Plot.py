@@ -34,7 +34,7 @@ def _cumulative_dist_EN(E, N):
 
 def animate_simulation(
     histories,
-    path=None,                      # (구버전 호환) 정적 path
+    path=None,               
     interval_ms=50,
     stride=1,
     tail_length_m=200.0,
@@ -47,9 +47,8 @@ def animate_simulation(
     blit=False,
     show=True,
 
-    # === (신규) 현재 레그 기반 동적 경로 표시 ===
-    leg_index_histories=None,       # [per-UAV] np.array of int (프레임별 레그 idx)
-    path_by_leg_list=None,          # [per-UAV] dict {leg_idx: path(N,2)[N,E]}
+    leg_index_histories=None,    
+    path_by_leg_list=None,    
 ):
     # ---- normalize histories ----
     assert isinstance(histories, (list, tuple)) and len(histories) > 0
@@ -130,7 +129,6 @@ def animate_simulation(
             line, = ax.plot([], [], path_linestyle, lw=2, alpha=path_alpha, color=colors[i], zorder=1, animated=blit)
             leg_path_lines.append(line)
     else:
-        # fallback: static path (구버전 호환)
         if paths is not None:
             for i in range(n_uav):
                 P = paths[i]
@@ -140,7 +138,6 @@ def animate_simulation(
     frames = list(range(0, Tlen, max(1, int(stride))))
 
     def _update(k):
-        # 현재 레그 path 교체
         if use_leg:
             for i in range(n_uav):
                 leg_hist = leg_index_histories[i]
@@ -148,7 +145,6 @@ def animate_simulation(
                 if leg_hist is None or len(leg_hist) == 0:
                     leg_path_lines[i].set_data([], [])
                     continue
-                # histories 길이(Tlen)와 leg_hist 길이가 다를 수 있으니 스케일링
                 idx_k = int(np.floor(k * (len(leg_hist) - 1) / (Tlen - 1))) if Tlen > 1 else 0
                 leg = int(leg_hist[idx_k])
                 P = leg_map.get(leg, None)
@@ -158,7 +154,6 @@ def animate_simulation(
                     P = _normalize_path_like(P)
                     leg_path_lines[i].set_data(P[:,1], P[:,0])  # (E,N)
 
-        # 꼬리/기체
         for i, H in enumerate(Hs):
             n, e, psi = H[k,0], H[k,1], H[k,2]
             body_patches[i].set_xy(_triangle_vertices_EN(e, n, psi, L=base_L, W=base_W))
