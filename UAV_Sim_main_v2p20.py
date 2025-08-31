@@ -118,47 +118,33 @@ if __name__ == "__main__":
     
     X = [np.zeros((T_steps + 1, 4)) for _ in range(num_uav)]
     U = [np.zeros((T_steps + 1, 2)) for _ in range(num_uav)]
-    x = [np.asarray(x0_list[i], dtype=float).copy() for i in range(num_uav)]
-    u = [np.array([0.0, 0.0], float) for _ in range(num_uav)]
     for i in range(num_uav):
-        X[i][0] = x[i]
-        U[i][0] = u[i]
+        X[i][0] = np.asarray(x0_list[i], dtype=float)
+        U[i][0] = np.array([0.0, 0.0], float)
         
     for k in range(T_steps):
         if t > ctrl_chk - 1e-12:
-            omega1 = Guidance_Method_0(x[0])  # UAV1
-            u[0][0] = float(np.clip(omega1, -1.0, 1.0)); u[0][1] = 0.0
-            omega2 = Guidance_Method_1(x[1])  # UAV2
-            u[1][0] = float(np.clip(omega2, -1.0, 1.0)); u[1][1] = 0.0
-            omega3 = Guidance_Method_2(x[2])  # UAV3
-            u[2][0] = float(np.clip(omega3, -1.0, 1.0)); u[2][1] = 0.0
-            omega4 = Guidance_Method_3(x[3])  # UAV4
-            u[3][0] = float(np.clip(omega4, -1.0, 1.0)); u[3][1] = 0.0
+            omega0 = Guidance_Method_0(X[0][k])  # UAV1
+            U[0][k] = [np.clip(omega0, -1.0, 1.0), 0.0]
+            omega1 = Guidance_Method_1(X[1][k])  # UAV2
+            U[1][k] = [np.clip(omega1, -1.0, 1.0), 0.0]
+            omega2 = Guidance_Method_2(X[2][k])  # UAV3
+            U[2][k] = [np.clip(omega2, -1.0, 1.0), 0.0]
+            omega3 = Guidance_Method_3(X[3][k])  # UAV4
+            U[3][k] = [np.clip(omega3, -1.0, 1.0), 0.0]
             ctrl_chk += ctrl_dt
         for i in range(num_uav):
-            x[i] = integrate_step(unicycle_dynamics, x[i], u[i], sim_dt, method="rk4", t=t)
-            X[i][k+1] = x[i]
-            U[i][k+1] = u[i]
+            X[i][k+1] = integrate_step(unicycle_dynamics, X[i][k], U[i][k], sim_dt, method="rk4", t=t)
+            U[i][k+1] = U[i][k]
         t += sim_dt
-        
-    X1, X2, X3, X4 = X
-    U1, U2, U3, U4 = U
-    x1, x2, x3, x4 = x
-    u1, u2, u3, u4 = u
-        
+                
     # =========================
     # Visualize
     # =========================
     ani, fig = animate_simulation(
-    histories=[X1, X2, X3, X4],
-    leg_index_histories = [np.asarray(LEG_HIST[0], dtype=int),
-                           np.asarray(LEG_HIST[1], dtype=int),
-                           np.asarray(LEG_HIST[2], dtype=int),
-                           np.asarray(LEG_HIST[3], dtype=int)],
-    path_by_leg_list    = [PATH_BY_LEG[0],
-                           PATH_BY_LEG[1],
-                           PATH_BY_LEG[2],
-                           PATH_BY_LEG[3]],
+    histories=X,
+    leg_index_histories=[np.asarray(h, dtype=int) for h in LEG_HIST],
+    path_by_leg_list=PATH_BY_LEG,
     interval_ms=50, stride=60, tail_length_m=800.0,
     uav_scale=3, blit=True, show=True)
     if save_video == True:
