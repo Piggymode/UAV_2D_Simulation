@@ -35,27 +35,3 @@ def unicycle_dynamics(t, state, control, params=None):
 
     return np.array([n_dot, e_dot, psi_dot, v_dot], dtype=float)
 
-# =========================
-# Execute Simulation
-# Control Input u_seq: shape (N, 3) , [time, omega, acc]
-# =========================
-def simulate_unicycle(Guidance_Method, x0, T_tot, sim_dt, ctrl_dt, method="rk4"):
-    total_steps = int(T_tot/sim_dt)
-    T = np.linspace(0.0, T_tot, total_steps+1)
-    X = np.zeros((total_steps+1, 4), dtype=float)
-    U = np.zeros((total_steps+1, 2), dtype=float)
-    X[0] = np.asarray(x0, dtype=float)
-    U[0] = np.asarray([0.0, 0.0], dtype=float)
-
-    u = [Guidance_Method(X[0]), 0.0]
-    ctrl_chk = ctrl_dt
-    t = 0.0
-    for k in range(total_steps):
-        if t >= ctrl_chk - 1e-12:
-            omega = Guidance_Method(X[k])
-            u = [omega, 0.0]
-            ctrl_chk += ctrl_dt
-        X[k+1] = integrate_step(unicycle_dynamics, X[k], u, sim_dt, method, t)
-        U[k+1] = u
-        t += sim_dt
-    return T, X, U
