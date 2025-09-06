@@ -15,7 +15,7 @@ from Animation_Plot import animate_simulation
 # Main
 # =========================
 if __name__ == "__main__":
-    total_time = 300.0
+    total_time = 180.0
     sim_dt  = 0.01
     ctrl_dt = 0.1
     save_video = False
@@ -25,10 +25,10 @@ if __name__ == "__main__":
     # =========================
     num_uav = 4
     x0_list = [
-        np.array([-800.0, -400.0, np.deg2rad( 20.0), 40.0]),    # UAV0
-        np.array([-500.0,  200.0, np.deg2rad(-10.0), 40.0]),    # UAV1
-        np.array([ 300.0, -700.0, np.deg2rad( 45.0), 40.0]),    # UAV2
-        np.array([ 300.0, -700.0, np.deg2rad( 45.0), 40.0]),    # UAV3
+        np.array([0.0, 00.0, np.deg2rad(90.0), 40.0]),    # UAV0
+        np.array([0.0, 00.0, np.deg2rad(90.0), 40.0]),    # UAV1
+        np.array([0.0, 00.0, np.deg2rad(90.0), 40.0]),    # UAV2
+        np.array([0.0, 00.0, np.deg2rad(90.0), 40.0]),    # UAV3
     ]
     
     # =========================
@@ -38,22 +38,22 @@ if __name__ == "__main__":
     # HOLD      (n, e, radius, direction(+1/-1), duration[s])
     # LINE      (n, e, mode="FLY_OVER"/"FLY_BY")
     # RACETRACK (n, e, length, width, bearing[deg], direction(+1/-1), laps)
-    m0 = [("HOLD", 0.0, 0.0, 400.0, -1, 30.0),
-          ("LINE", 1200.0, 800.0, "FLY_OVER"),
+    m0 = [("HOLD", 0.0, 2000.0, 800.0, 1, 300),
+          ("LINE", 00.0, 4000.0, "FLY_OVER"),
           ("HOLD", 800.0, -600.0, 300.0, +1, 30.0),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, -1, 3),
           ("LINE", 400.0, -600.0, "FLY_BY")]
-    m1 = [("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, +1, 3),
-          ("HOLD", 0.0, 0.0, 400.0, -1, 60.0),
+    m1 = [("HOLD", 0.0, 2000.0, 800.0, 1, 300),
+          ("LINE", 00.0, 4000.0, "FLY_OVER"),
           ("LINE", 1200.0, 800.0, "FLY_OVER"),
           ("HOLD", 400.0, -600.0, 300.0, +1, 120.0)]
-    m2 = [("HOLD", 800.0, -600.0, 300.0, +1, 120.0),
-          ("LINE", 00.0, 00.0, "FLY_BY"),
+    m2 = [("HOLD", 0.0, 2000.0, 800.0, 1, 300),
+          ("LINE", 00.0, 4000.0, "FLY_OVER"),
           ("HOLD", 0.0, 0.0, 400.0, -1, 60.0),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, -1, 3),
           ("LINE", 1200.0, 800.0, "FLY_OVER"),]
-    m3 = [("HOLD", 0.0, 0.0, 400.0, -1, 60.0),
-          ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, +1, 3),
+    m3 = [("HOLD", 0.0, 2000.0, 800.0, 1, 300),
+          ("LINE", 00.0, 4000.0, "FLY_OVER"),
           ("LINE", 1200.0, 800.0, "FLY_OVER"),
           ("RACETRACK", 1500.0, -500.0, 250.0, 1800.0, -20.0, +1, 3),
           ("LINE", 400.0, -600.0, "FLY_BY"),
@@ -71,42 +71,38 @@ if __name__ == "__main__":
     # =========================
     def Guidance_Method_0(state, idx=0):
         (triplet, meta), mission_states[idx] = mission_planner_step(t=guidance_times[idx],pos_NE=state[:2],psi=state[2],mission_state=mission_states[idx],mission_spec=missions[idx])
-        omega = TG_Guidance(state, triplet, Kp=0.0002, K=100)
+        omega = TG_Guidance(state, triplet, Kp=0.0001, K=400)
         guidance_times[idx] += ctrl_dt
         leg = int(meta["leg_idx"]); LEG_HIST[idx].append(leg)
         if leg not in PATH_BY_LEG[idx]:
-            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600)
-            PATH_BY_LEG[idx][leg] = P
+            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600); PATH_BY_LEG[idx][leg] = P
         return float(np.clip(omega, -1.0, 1.0))
 
     def Guidance_Method_1(state, idx=1):
         (triplet, meta), mission_states[idx] = mission_planner_step(t=guidance_times[idx],pos_NE=state[:2],psi=state[2],mission_state=mission_states[idx],mission_spec=missions[idx])
-        omega = NLPF_Guidance(state, triplet, L1=200.0, num_points=600)
+        omega = TG_Guidance(state, triplet, Kp=0.0001, K=800)
         guidance_times[idx] += ctrl_dt
         leg = int(meta["leg_idx"]); LEG_HIST[idx].append(leg)
         if leg not in PATH_BY_LEG[idx]:
-            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600)
-            PATH_BY_LEG[idx][leg] = P
+            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600); PATH_BY_LEG[idx][leg] = P
         return float(np.clip(omega, -1.0, 1.0))
 
     def Guidance_Method_2(state, idx=2):
         (triplet, meta), mission_states[idx] = mission_planner_step(t=guidance_times[idx],pos_NE=state[:2],psi=state[2],mission_state=mission_states[idx],mission_spec=missions[idx])
-        omega = TG_Guidance(state, triplet, Kp=0.0002, K=100)
+        omega = TG_Guidance(state, triplet, Kp=0.0001, K=1200)
         guidance_times[idx] += ctrl_dt
         leg = int(meta["leg_idx"]); LEG_HIST[idx].append(leg)
         if leg not in PATH_BY_LEG[idx]:
-            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600)
-            PATH_BY_LEG[idx][leg] = P
+            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600); PATH_BY_LEG[idx][leg] = P
         return float(np.clip(omega, -1.0, 1.0))
 
     def Guidance_Method_3(state, idx=3):
         (triplet, meta), mission_states[idx] = mission_planner_step(t=guidance_times[idx],pos_NE=state[:2],psi=state[2],mission_state=mission_states[idx],mission_spec=missions[idx])
-        omega = NLPF_Guidance(state, triplet, L1=200.0, num_points=600)
+        omega = TG_Guidance(state, triplet, Kp=0.0001, K=1600)
         guidance_times[idx] += ctrl_dt
         leg = int(meta["leg_idx"]); LEG_HIST[idx].append(leg)
         if leg not in PATH_BY_LEG[idx]:
-            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600)
-            PATH_BY_LEG[idx][leg] = P
+            P, _ = build_viz_path_from_triplet(triplet, state=state, num_points=600); PATH_BY_LEG[idx][leg] = P
         return float(np.clip(omega, -1.0, 1.0))
         
     # =========================
@@ -146,9 +142,9 @@ if __name__ == "__main__":
     leg_index_histories=[np.asarray(h, dtype=int) for h in LEG_HIST],
     path_by_leg_list=PATH_BY_LEG,
     interval_ms=50, stride=60, tail_length_m=800.0,
-    uav_scale=3, blit=True, show=True)
+    uav_scale=5, blit=True, show= not save_video)
     if save_video == True:
-        ani.save("uav_simulation.mp4", writer=animation.FFMpegWriter(fps=180))
+        ani.save("uav_simulation.mp4", writer=animation.FFMpegWriter(fps=60))
     
     plt.show(block=False)
     plt.close(fig) 
